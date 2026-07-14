@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter & Billing — New Sai Sagar</title>
+  <meta name="description" content="Counter and billing panel. Manage tables, generate bills, process payments.">
+  <link rel="stylesheet" href="../shared/styles.css?v=3">
+  <style>
+    .counter-layout {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      min-height: calc(100vh - var(--header-height));
+    }
+
+    .counter-main { padding: var(--space-lg); overflow-y: auto; }
+    .counter-sidebar {
+      background: var(--bg-surface); border-left: 1px solid var(--border-glass);
+      padding: var(--space-lg); overflow-y: auto;
+      position: sticky; top: var(--header-height); height: calc(100vh - var(--header-height));
+    }
+
+    /* Table Overview */
+    .table-overview { margin-bottom: var(--space-xl); }
+
+    /* Orders Section */
+    .orders-section { margin-bottom: var(--space-xl); }
+    .order-row {
+      display: flex; align-items: center; gap: var(--space-md);
+      padding: var(--space-md); background: var(--bg-card); border: 1px solid var(--border-glass);
+      border-radius: var(--radius-md); margin-bottom: var(--space-sm);
+      cursor: pointer; transition: all var(--transition-fast);
+      border-left: 4px solid var(--text-muted);
+    }
+    .order-row:hover { background: var(--bg-card-hover); }
+    .order-row.selected { border-color: var(--primary); background: var(--primary-subtle); }
+    .order-row.status-new { border-left-color: var(--primary); }
+    .order-row.status-preparing { border-left-color: var(--warning); }
+    .order-row.status-ready { border-left-color: var(--success); }
+    .order-row.status-served { border-left-color: var(--info); }
+
+    .or-info { flex: 1; }
+    .or-number { font-family: var(--font-heading); font-weight: 700; font-size: var(--text-base); }
+    .or-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
+    .or-table { font-family: var(--font-heading); font-weight: 700; color: var(--primary); }
+    .or-amount { font-family: var(--font-heading); font-weight: 700; }
+
+    /* Bill Preview Sidebar */
+    .bill-section h3 { margin-bottom: var(--space-md); }
+    .bill-empty {
+      text-align: center; padding: var(--space-3xl) var(--space-md);
+      color: var(--text-secondary);
+    }
+    .bill-empty .be-icon { font-size: 3rem; margin-bottom: var(--space-md); opacity: 0.4; }
+
+    .bill-preview {
+      background: var(--bg-card); border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg); padding: var(--space-lg);
+    }
+    .bp-header { text-align: center; margin-bottom: var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px dashed var(--border-glass); }
+    .bp-name { font-family: var(--font-heading); font-weight: 700; font-size: var(--text-lg); color: var(--primary); }
+    .bp-tag { font-size: var(--text-xs); color: var(--accent-light); }
+
+    .bp-info { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md); }
+    .bp-info div { display: flex; justify-content: space-between; padding: 2px 0; }
+
+    .bp-items table {
+      width: 100%; border-collapse: collapse; font-size: var(--text-sm);
+      margin-bottom: var(--space-md);
+    }
+    .bp-items th {
+      text-align: left; font-size: var(--text-xs); color: var(--text-secondary);
+      padding: 6px 0; border-bottom: 1px dashed var(--border-glass);
+      text-transform: uppercase;
+    }
+    .bp-items th:last-child, .bp-items td:last-child { text-align: right; }
+    .bp-items th:nth-child(2), .bp-items td:nth-child(2) { text-align: center; }
+    .bp-items td { padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+
+    .bp-totals { border-top: 1px dashed var(--border-glass); padding-top: var(--space-sm); }
+    .bp-total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: var(--text-sm); }
+    .bp-total-row.discount { color: var(--success); }
+    .bp-total-row.grand {
+      font-family: var(--font-heading); font-weight: 700; font-size: var(--text-xl);
+      color: var(--primary); padding-top: var(--space-sm); margin-top: var(--space-xs);
+      border-top: 2px solid var(--border-glass);
+    }
+
+    /* Billing Form */
+    .billing-form { margin-top: var(--space-lg); }
+    .payment-modes {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+    .payment-mode-btn {
+      padding: 10px; text-align: center; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-glass); background: var(--bg-card);
+      cursor: pointer; transition: all var(--transition-fast);
+      font-weight: 600; font-size: var(--text-sm);
+    }
+    .payment-mode-btn:hover { border-color: var(--primary); }
+    .payment-mode-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .payment-mode-btn .pm-icon { font-size: 1.5rem; display: block; margin-bottom: 4px; }
+
+    .bill-actions { display: flex; flex-direction: column; gap: var(--space-sm); margin-top: var(--space-lg); }
+
+    /* Daily Summary */
+    .daily-summary {
+      background: var(--bg-card); border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg); padding: var(--space-lg); margin-top: var(--space-xl);
+    }
+    .summary-stats {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md);
+      margin-top: var(--space-md);
+    }
+    .summary-stat {
+      text-align: center; padding: var(--space-md);
+      background: var(--bg-glass); border-radius: var(--radius-md);
+    }
+    .summary-stat .ss-value {
+      font-family: var(--font-heading); font-size: var(--text-2xl); font-weight: 700;
+    }
+    .summary-stat .ss-label { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 4px; }
+    .summary-stat.revenue .ss-value { color: var(--success); }
+
+    /* Bill History */
+    .bill-history { margin-top: var(--space-xl); }
+    .bh-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-md); border-bottom: 1px solid var(--border-subtle);
+      font-size: var(--text-sm);
+    }
+    .bh-item:last-child { border-bottom: none; }
+    .bh-number { font-weight: 600; }
+    .bh-amount { font-family: var(--font-heading); font-weight: 700; color: var(--success); }
+    .bh-mode { font-size: var(--text-xs); color: var(--text-secondary); }
+
+    @media (max-width: 1024px) {
+      .counter-layout { grid-template-columns: 1fr; }
+      .counter-sidebar {
+        position: static; height: auto; border-left: none;
+        border-top: 1px solid var(--border-glass);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <header class="panel-header no-print">
+      <div class="logo">
+        <span class="logo-icon"><i data-lucide="receipt"></i></span>
+        <div>
+          <div class="logo-text">Counter & Billing</div>
+          <div class="logo-sub">New Sai Sagar</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" onclick="refreshAll()">🔄 Refresh</button>
+      </div>
+    </header>
+
+    <div class="counter-layout">
+      <div class="counter-main">
+        <!-- Table Overview -->
+        <div class="table-overview">
+          <div class="section-header">
+            <h3 class="section-title"><i data-lucide="file-text"></i> Tables</h3>
+          </div>
+          <div class="table-grid" id="table-grid"></div>
+        </div>
+
+        <!-- Active Orders -->
+        <div class="orders-section">
+          <div class="section-header">
+            <h3 class="section-title"><i data-lucide="package"></i> Active Orders</h3>
+            <span class="badge badge-primary" id="active-count">0</span>
+          </div>
+          <div id="orders-list"></div>
+        </div>
+
+        <!-- Daily Summary -->
+        <div class="daily-summary">
+          <h3 class="section-title"><i data-lucide="layout-dashboard"></i> Today's Summary</h3>
+          <div class="summary-stats" id="summary-stats"></div>
+        </div>
+
+        <!-- Bill History -->
+        <div class="bill-history">
+          <div class="section-header">
+            <h3 class="section-title"><i data-lucide="receipt"></i> Today's Bills</h3>
+          </div>
+          <div class="card-flat" id="bill-history-list" style="max-height: 400px; overflow-y: auto;"></div>
+        </div>
+      </div>
+
+      <!-- Billing Sidebar -->
+      <div class="counter-sidebar no-print">
+        <div class="bill-section">
+          <h3><i data-lucide="dollar-sign"></i> Generate Bill</h3>
+          <div id="bill-area">
+            <div class="bill-empty">
+              <div class="be-icon"><i data-lucide="receipt"></i></div>
+              <p>Select an order to generate a bill</p>
+              <p class="text-small text-muted mt-sm">Click on any active order from the left panel</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/data.js?v=2"></script>
+  <script src="../shared/utils.js?v=5"></script>
+  <script src="../shared/store.js?v=5"></script>
+  <script>
+    var selectedOrderId = null;
+    var selectedPaymentMode = 'cash';
+    var discountValue = 0;
+    var discountType = 'flat';
+
+    document.addEventListener('DOMContentLoaded', function () {
+      SaiSagar.Sync.onMessage(function (msg) {
+        if (msg.type === SaiSagar.Store.EVENTS.READY) {
+          refreshAll();
+        }
+        var refresh = [
+          SaiSagar.Store.EVENTS.ORDER_CREATED,
+          SaiSagar.Store.EVENTS.ORDER_STATUS,
+          SaiSagar.Store.EVENTS.ORDER_UPDATED,
+          SaiSagar.Store.EVENTS.TABLE_UPDATED,
+          SaiSagar.Store.EVENTS.BILL_CREATED,
+          SaiSagar.Store.EVENTS.DATA_RESET
+        ];
+        if (refresh.indexOf(msg.type) !== -1) {
+          refreshAll();
+          if (msg.type === SaiSagar.Store.EVENTS.ORDER_CREATED) {
+            SaiSagar.Utils.showToast('<i data-lucide="bell-ring"></i> New order from Table ' + msg.payload.tableNumber, 'info');
+            SaiSagar.Utils.playNotificationSound('order');
+          }
+          if (msg.type === SaiSagar.Store.EVENTS.ORDER_STATUS && msg.payload.status === 'ready') {
+            SaiSagar.Utils.showToast('<i data-lucide="check-circle"></i> Order ' + msg.payload.order.orderNumber + ' is ready!', 'success');
+            SaiSagar.Utils.playNotificationSound('ready');
+          }
+        }
+      });
+
+      setInterval(refreshAll, 30000);
+      SaiSagar.Store.init();
+    });
+
+    function refreshAll() {
+      renderTables();
+      renderOrders();
+      renderSummary();
+      renderBillHistory();
+      if (selectedOrderId) {
+        var order = SaiSagar.Store.OrderStore.getById(selectedOrderId);
+        if (order && order.status !== 'billed') renderBillPreview(order);
+        else { selectedOrderId = null; clearBillArea(); }
+      }
+    }
+
+    /* ── Tables ──────────────────────────────── */
+    function renderTables() {
+      var tables = SaiSagar.Store.TableStore.getAll();
+      var container = document.getElementById('table-grid');
+      var html = '';
+      tables.forEach(function (t) {
+        html += '<div class="table-cell ' + t.status + '" onclick="selectTable(' + t.number + ')" title="Table ' + t.number + ' — ' + t.status + '">' +
+          '<div class="table-num">' + t.number + '</div>' +
+          '<div class="table-status-text">' + t.status + '</div></div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function selectTable(num) {
+      var orders = SaiSagar.Store.OrderStore.getByTable(num);
+      if (orders.length > 0) {
+        selectOrder(orders[0].id);
+      } else {
+        SaiSagar.Utils.showToast('No active orders for Table ' + num, 'info');
+      }
+    }
+
+    /* ── Orders ──────────────────────────────── */
+    function renderOrders() {
+      var orders = SaiSagar.Store.OrderStore.getActive();
+      document.getElementById('active-count').textContent = orders.length;
+
+      var container = document.getElementById('orders-list');
+      if (orders.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:var(--space-xl) 0"><div class="empty-icon"><i data-lucide="inbox"></i></div><div class="empty-title">No active orders</div></div>';
+        return;
+      }
+
+      // Sort: ready first, then served, preparing, new
+      var priority = { ready: 0, served: 1, preparing: 2, new: 3 };
+      orders.sort(function (a, b) { return (priority[a.status] || 9) - (priority[b.status] || 9); });
+
+      var html = '';
+      orders.forEach(function (o) {
+        var isSelected = o.id === selectedOrderId;
+        var tableDisplay = (o.tableNumber === 'Parcel' || o.tableNumber === 0) ? '<span class="badge badge-warning" style="font-size:10px;padding:2px 6px;">🛍️ PARCEL</span>' : 'Table <span class="or-table">' + o.tableNumber + '</span>';
+        html += '<div class="order-row status-' + o.status + (isSelected ? ' selected' : '') + '" onclick="selectOrder(\'' + o.id + '\')">' +
+          '<div class="or-info">' +
+            '<div class="or-number">' + o.orderNumber + '</div>' +
+            '<div class="or-meta">' + tableDisplay + ' · ' +
+              SaiSagar.Utils.getTimeSince(o.createdAt) + '</div>' +
+          '</div>' +
+          '<div class="status-badge ' + o.status + '"><span class="status-dot ' + o.status + '"></span> ' + o.status + '</div>' +
+          '<div class="or-amount">' + SaiSagar.Utils.formatCurrencyShort(o.totalAmount) + '</div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function selectOrder(orderId) {
+      selectedOrderId = orderId;
+      var order = SaiSagar.Store.OrderStore.getById(orderId);
+      if (!order) return;
+      renderOrders();
+      renderBillPreview(order);
+    }
+
+    /* ── Bill Preview ────────────────────────── */
+    function clearBillArea() {
+      document.getElementById('bill-area').innerHTML =
+        '<div class="bill-empty"><div class="be-icon"><i data-lucide="receipt"></i></div><p>Select an order to generate a bill</p>' +
+        '<p class="text-small text-muted mt-sm">Click on any active order from the left panel</p></div>';
+    }
+
+    function renderBillPreview(order) {
+      var settings = SaiSagar.Store.SettingsStore.get();
+      var subtotal = order.totalAmount;
+      var discount = discountType === 'percent' ? subtotal * discountValue / 100 : discountValue;
+      var afterDiscount = subtotal - discount;
+      var gstRate = settings.gstRate || 5;
+      var gst = afterDiscount * gstRate / 100;
+      var cgst = gst / 2;
+      var sgst = gst / 2;
+      var grandTotal = Math.round((afterDiscount + gst) * 100) / 100;
+
+      var html = '<div class="bill-preview">';
+
+      // Header
+      html += '<div class="bp-header">' +
+        '<div class="bp-name">' + settings.restaurantName + '</div>' +
+        '<div class="bp-tag"><i data-lucide="leaf"></i> ' + (settings.tagline || 'Pure Veg Restaurant') + '</div></div>';
+
+      // Info
+      html += '<div class="bp-info">' +
+        '<div><span>Order:</span><span>' + order.orderNumber + '</span></div>' +
+        '<div><span>Table:</span><span>' + ((order.tableNumber === 'Parcel' || order.tableNumber === 0) ? 'Parcel' : order.tableNumber) + '</span></div>' +
+        '<div><span>Date:</span><span>' + SaiSagar.Utils.formatDate(order.createdAt) + '</span></div>' +
+        '<div><span>Time:</span><span>' + SaiSagar.Utils.formatTime(order.createdAt) + '</span></div>' +
+        '<div><span>Status:</span><span class="status-badge ' + order.status + '" style="font-size:10px;padding:2px 8px;">' + order.status.toUpperCase() + '</span></div>' +
+      '</div>';
+
+      // Items
+      html += '<div class="bp-items"><table>' +
+        '<tr><th>Item</th><th>Qty</th><th>Amt</th></tr>';
+      order.items.forEach(function (item) {
+        html += '<tr><td>' + SaiSagar.Utils.escapeHtml(item.name) +
+          '<br><span style="font-size:10px;color:var(--text-muted)">@ ' + SaiSagar.Utils.formatCurrencyShort(item.price) + '</span></td>' +
+          '<td>' + item.quantity + '</td>' +
+          '<td>' + SaiSagar.Utils.formatCurrency(item.price * item.quantity) + '</td></tr>';
+      });
+      html += '</table></div>';
+
+      // Totals
+      html += '<div class="bp-totals">' +
+        '<div class="bp-total-row"><span>Subtotal</span><span>' + SaiSagar.Utils.formatCurrency(subtotal) + '</span></div>';
+      if (discount > 0) {
+        html += '<div class="bp-total-row discount"><span>Discount</span><span>-' + SaiSagar.Utils.formatCurrency(discount) + '</span></div>';
+      }
+      html += '<div class="bp-total-row"><span>CGST (' + (gstRate / 2) + '%)</span><span>' + SaiSagar.Utils.formatCurrency(cgst) + '</span></div>' +
+        '<div class="bp-total-row"><span>SGST (' + (gstRate / 2) + '%)</span><span>' + SaiSagar.Utils.formatCurrency(sgst) + '</span></div>' +
+        '<div class="bp-total-row grand"><span>Grand Total</span><span>' + SaiSagar.Utils.formatCurrency(grandTotal) + '</span></div></div>';
+      html += '</div>';
+
+      // Billing Form
+      html += '<div class="billing-form">';
+
+      // Discount
+      html += '<div class="form-row" style="margin-bottom:var(--space-md)">' +
+        '<div class="form-group" style="margin:0"><label class="form-label">Discount</label>' +
+        '<input type="number" class="form-input" id="discount-input" value="' + discountValue + '" min="0" onchange="updateDiscount()" placeholder="0"></div>' +
+        '<div class="form-group" style="margin:0"><label class="form-label">Type</label>' +
+        '<select class="form-select" id="discount-type" onchange="updateDiscount()">' +
+        '<option value="flat"' + (discountType === 'flat' ? ' selected' : '') + '>₹ Flat</option>' +
+        '<option value="percent"' + (discountType === 'percent' ? ' selected' : '') + '>% Percent</option>' +
+        '</select></div></div>';
+
+      // Payment Mode
+      html += '<label class="form-label">Payment Mode</label>' +
+        '<div class="payment-modes">' +
+        '<div class="payment-mode-btn' + (selectedPaymentMode === 'cash' ? ' active' : '') + '" onclick="setPayment(\'cash\')">' +
+          '<span class="pm-icon">💵</span>Cash</div>' +
+        '<div class="payment-mode-btn' + (selectedPaymentMode === 'upi' ? ' active' : '') + '" onclick="setPayment(\'upi\')">' +
+          '<span class="pm-icon"><i data-lucide="smartphone"></i></span>UPI</div>' +
+        '<div class="payment-mode-btn' + (selectedPaymentMode === 'card' ? ' active' : '') + '" onclick="setPayment(\'card\')">' +
+          '<span class="pm-icon">💳</span>Card</div></div>';
+
+      // Actions
+      html += '<div class="bill-actions">' +
+        '<button class="btn btn-primary btn-lg btn-block" onclick="generateBill()"><i data-lucide="receipt"></i> Generate & Print Bill</button>';
+      if (order.status === 'ready') {
+        html += '<button class="btn btn-success btn-block" onclick="markServed()"><i data-lucide="utensils"></i>️ Mark as Served</button>';
+      }
+      html += '</div></div>';
+
+      document.getElementById('bill-area').innerHTML = html;
+    }
+
+    function updateDiscount() {
+      discountValue = parseFloat(document.getElementById('discount-input').value) || 0;
+      discountType = document.getElementById('discount-type').value;
+      var order = SaiSagar.Store.OrderStore.getById(selectedOrderId);
+      if (order) renderBillPreview(order);
+    }
+
+    function setPayment(mode) {
+      selectedPaymentMode = mode;
+      var order = SaiSagar.Store.OrderStore.getById(selectedOrderId);
+      if (order) renderBillPreview(order);
+    }
+
+    function markServed() {
+      if (!selectedOrderId) return;
+      SaiSagar.Store.OrderStore.updateStatus(selectedOrderId, 'served');
+      SaiSagar.Utils.showToast('<i data-lucide="utensils"></i>️ Order marked as served', 'success');
+      refreshAll();
+    }
+
+    /* ── Generate Bill ───────────────────────── */
+    function generateBill() {
+      if (!selectedOrderId) return;
+      var order = SaiSagar.Store.OrderStore.getById(selectedOrderId);
+      if (!order) return;
+
+      // If not served yet, serve it first
+      if (order.status !== 'served' && order.status !== 'billed') {
+        SaiSagar.Store.OrderStore.updateStatus(selectedOrderId, 'served');
+      }
+
+      var bill = SaiSagar.Store.BillStore.generate(selectedOrderId, {
+        discountType: discountType,
+        discountValue: discountValue,
+        paymentMode: selectedPaymentMode
+      });
+
+      if (!bill) {
+        SaiSagar.Utils.showToast('Error generating bill', 'error');
+        return;
+      }
+
+      SaiSagar.Utils.showToast('<i data-lucide="check-circle"></i> Bill ' + bill.billNumber + ' generated!', 'success');
+      SaiSagar.Utils.playNotificationSound('ready');
+
+      // Print
+      printBill(bill);
+
+      // Reset
+      selectedOrderId = null;
+      discountValue = 0;
+      discountType = 'flat';
+      refreshAll();
+      clearBillArea();
+    }
+
+    /* ── Print Bill ──────────────────────────── */
+    function printBill(bill) {
+      var html = '<!DOCTYPE html><html><head><title>Receipt</title>';
+      html += '<style>' +
+        'body { margin: 0; padding: 4mm; font-family: "Courier New", monospace; font-size: 11px; width: 80mm; background: white; color: black; line-height: 1.4; }' +
+        '.receipt-header { text-align: center; margin-bottom: 4mm; }' +
+        '.receipt-header .receipt-name { font-size: 14px; font-weight: bold; }' +
+        '.receipt-header .receipt-tagline { font-size: 10px; }' +
+        '.receipt-header .receipt-addr { font-size: 9px; }' +
+        '.receipt-divider { border: none; border-top: 1px dashed black; margin: 2mm 0; }' +
+        '.receipt-info { font-size: 10px; }' +
+        '.receipt-items-table { width: 100%; font-size: 10px; border-collapse: collapse; }' +
+        '.receipt-items-table th { text-align: left; border-bottom: 1px dashed black; padding: 1mm 0; font-size: 9px; }' +
+        '.receipt-items-table td { padding: 1mm 0; vertical-align: top; }' +
+        '.receipt-items-table .col-qty { width: 10%; text-align: center; }' +
+        '.receipt-items-table .col-rate { width: 20%; text-align: right; }' +
+        '.receipt-items-table .col-amt { width: 22%; text-align: right; }' +
+        '.receipt-totals { font-size: 10px; }' +
+        '.receipt-totals .total-row { display: flex; justify-content: space-between; padding: 0.5mm 0; }' +
+        '.receipt-totals .grand-total { font-size: 13px; font-weight: bold; }' +
+        '.receipt-footer { text-align: center; font-size: 10px; margin-top: 3mm; }' +
+        '</style></head><body>';
+        
+      html += '<div class="receipt-header">' +
+        '<div class="receipt-name">' + (bill.restaurantName || 'HOTEL NEW SAI SAGAR') + '</div>' +
+        '<div class="receipt-tagline">PURE VEG RESTAURANT</div>' +
+        '<div class="receipt-addr">' + (bill.address || '') + '</div>' +
+        '<div class="receipt-addr">Ph: ' + (bill.phone || '') + '</div>' +
+        (bill.gstin ? '<div class="receipt-addr">GSTIN: ' + bill.gstin + '</div>' : '') +
+      '</div>';
+
+      html += '<hr class="receipt-divider">';
+
+      html += '<div class="receipt-info">' +
+        '<div>Bill No: ' + bill.billNumber + '</div>' +
+        '<div>Date: ' + SaiSagar.Utils.formatDate(bill.createdAt) + '  Time: ' + SaiSagar.Utils.formatTime(bill.createdAt) + '</div>' +
+        '<div>Table No: ' + bill.tableNumber + '</div>' +
+        '<div>Order: ' + bill.orderNumber + '</div></div>';
+
+      html += '<hr class="receipt-divider">';
+
+      html += '<table class="receipt-items-table">' +
+        '<tr><th>Item</th><th class="col-qty">Qty</th><th class="col-rate">Rate</th><th class="col-amt">Amt</th></tr>';
+      bill.items.forEach(function (item) {
+        html += '<tr><td>' + item.name + '</td>' +
+          '<td class="col-qty">' + item.quantity + '</td>' +
+          '<td class="col-rate">' + item.price.toFixed(2) + '</td>' +
+          '<td class="col-amt">' + (item.price * item.quantity).toFixed(2) + '</td></tr>';
+      });
+      html += '</table>';
+
+      html += '<hr class="receipt-divider">';
+
+      html += '<div class="receipt-totals">';
+      html += '<div class="total-row"><span>Sub Total</span><span>' + bill.subtotal.toFixed(2) + '</span></div>';
+      if (bill.discount > 0) {
+        html += '<div class="total-row"><span>Discount</span><span>-' + bill.discount.toFixed(2) + '</span></div>';
+      }
+      html += '<div class="total-row"><span>CGST (' + (bill.gstRate / 2) + '%)</span><span>' + bill.cgst.toFixed(2) + '</span></div>';
+      html += '<div class="total-row"><span>SGST (' + (bill.gstRate / 2) + '%)</span><span>' + bill.sgst.toFixed(2) + '</span></div>';
+
+      html += '<hr class="receipt-divider">';
+      html += '<div class="total-row grand-total"><span>GRAND TOTAL</span><span>Rs. ' + bill.grandTotal.toFixed(2) + '</span></div>';
+      html += '</div>';
+
+      html += '<hr class="receipt-divider">';
+
+      html += '<div class="receipt-info"><div>Payment: ' + (bill.paymentMode || 'Cash').toUpperCase() + '</div></div>';
+
+      html += '<hr class="receipt-divider">';
+
+      html += '<div class="receipt-footer">' +
+        '<div>' + (bill.receiptFooter || 'Thank You! Visit Again 🙏') + '</div>' +
+        '<div style="font-size:8px;margin-top:2mm;">Computer generated receipt</div></div>';
+        
+      html += '  <script src="https://unpkg.com/lucide@latest"><\/script></body></html>';
+
+      var iframe = document.getElementById('print-iframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+      }
+      
+      var doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+      
+      setTimeout(function () {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      }, 500);
+    }
+
+    /* ── Summary ─────────────────────────────── */
+    function renderSummary() {
+      var summary = SaiSagar.Store.BillStore.getTodaysSummary();
+      var container = document.getElementById('summary-stats');
+      container.innerHTML =
+        '<div class="summary-stat revenue"><div class="ss-value">' + SaiSagar.Utils.formatCurrencyShort(summary.totalRevenue) + '</div><div class="ss-label">Total Revenue</div></div>' +
+        '<div class="summary-stat"><div class="ss-value">' + summary.totalOrders + '</div><div class="ss-label">Bills Generated</div></div>' +
+        '<div class="summary-stat"><div class="ss-value">' + SaiSagar.Utils.formatCurrencyShort(summary.byPaymentMode.cash || 0) + '</div><div class="ss-label">Cash</div></div>' +
+        '<div class="summary-stat"><div class="ss-value">' + SaiSagar.Utils.formatCurrencyShort((summary.byPaymentMode.upi || 0) + (summary.byPaymentMode.card || 0)) + '</div><div class="ss-label">UPI + Card</div></div>';
+    }
+
+    /* ── Bill History ────────────────────────── */
+    function renderBillHistory() {
+      var bills = SaiSagar.Store.BillStore.getTodays();
+      var container = document.getElementById('bill-history-list');
+
+      if (bills.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:var(--space-xl) 0"><div class="empty-icon" style="font-size:2rem">📄</div><div class="empty-text">No bills today yet</div></div>';
+        return;
+      }
+
+      bills.sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+
+      var html = '';
+      bills.forEach(function (bill) {
+        html += '<div class="bh-item">' +
+          '<div><div class="bh-number">' + bill.billNumber + '</div>' +
+          '<div class="bh-mode">Table ' + bill.tableNumber + ' · ' + (bill.paymentMode || 'cash').toUpperCase() + ' · ' + SaiSagar.Utils.formatTime(bill.createdAt) + '</div></div>' +
+          '<div class="bh-amount">' + SaiSagar.Utils.formatCurrency(bill.grandTotal) + '</div>' +
+          '<button class="btn btn-ghost btn-sm" onclick="reprintBill(\'' + bill.id + '\')" title="Reprint">🖨️</button></div>';
+      });
+      container.innerHTML = html;
+    }
+
+    function reprintBill(billId) {
+      var bill = SaiSagar.Store.BillStore.getById(billId);
+      if (bill) printBill(bill);
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</body>
+</html>

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kitchen Display — New Sai Sagar</title>
+  <meta name="description" content="Kitchen display panel for cooks. View and manage incoming orders in real-time.">
+  <link rel="stylesheet" href="../shared/styles.css?v=3">
+  <style>
+    .kitchen-body { background: #050510; }
+
+    .kitchen-header {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-md) var(--space-xl);
+      background: rgba(5,5,16,0.9); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-glass);
+    }
+    .kitchen-header .kh-left { display: flex; align-items: center; gap: var(--space-md); }
+    .kitchen-header .kh-title {
+      font-family: var(--font-heading); font-size: var(--text-2xl); font-weight: 800;
+    }
+    .kitchen-header .kh-stats { display: flex; gap: var(--space-md); }
+    .kh-stat {
+      display: flex; align-items: center; gap: var(--space-xs);
+      padding: 6px 14px; border-radius: var(--radius-full);
+      font-size: var(--text-sm); font-weight: 600;
+    }
+    .kh-stat.new-count { background: var(--primary-subtle); color: var(--primary-light); }
+    .kh-stat.prep-count { background: var(--warning-bg); color: var(--warning); }
+    .kh-stat.ready-count { background: var(--success-bg); color: var(--success); }
+
+    .kitchen-toggle {
+      display: flex; gap: 2px; background: var(--bg-card); border-radius: var(--radius-full);
+      padding: 3px; border: 1px solid var(--border-glass);
+    }
+    .kitchen-toggle button {
+      padding: 8px 18px; border: none; border-radius: var(--radius-full);
+      font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+      background: transparent; color: var(--text-secondary); transition: all var(--transition-fast);
+    }
+    .kitchen-toggle button.active { background: var(--primary); color: white; }
+
+    .kitchen-content { padding: var(--space-lg); }
+
+    /* Column Layout */
+    .kitchen-columns {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-lg);
+      min-height: calc(100vh - 100px);
+    }
+    .kitchen-column {
+      display: flex; flex-direction: column; gap: var(--space-md);
+    }
+    .column-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-sm) 0; border-bottom: 2px solid var(--border-glass);
+      margin-bottom: var(--space-sm);
+    }
+    .column-header h3 {
+      font-size: var(--text-lg); font-weight: 700; display: flex; align-items: center; gap: var(--space-sm);
+    }
+    .column-header .col-count {
+      font-size: var(--text-sm); padding: 2px 10px; border-radius: var(--radius-full);
+      font-weight: 700;
+    }
+    .col-new .column-header { border-color: var(--primary); }
+    .col-new .col-count { background: var(--primary-subtle); color: var(--primary-light); }
+    .col-preparing .column-header { border-color: var(--warning); }
+    .col-preparing .col-count { background: var(--warning-bg); color: var(--warning); }
+    .col-ready .column-header { border-color: var(--success); }
+    .col-ready .col-count { background: var(--success-bg); color: var(--success); }
+
+    /* List Layout */
+    .kitchen-list { display: flex; flex-direction: column; gap: var(--space-md); }
+
+    /* Order Card Kitchen */
+    .k-order {
+      background: var(--bg-card); border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg); padding: var(--space-lg);
+      border-left: 4px solid var(--text-muted); transition: all var(--transition-normal);
+      animation: fadeInUp 0.4s var(--ease-out) both;
+    }
+    .k-order.is-new { border-left-color: var(--primary); }
+    .k-order.is-preparing { border-left-color: var(--warning); }
+    .k-order.is-ready { border-left-color: var(--success); opacity: 0.7; }
+
+    .k-order.is-new.urgent { border-left-color: var(--danger); animation: pulseGlow 2s infinite; }
+
+    .k-order-top {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: var(--space-md);
+    }
+    .k-order-id { font-family: var(--font-heading); font-size: var(--text-xl); font-weight: 700; }
+    .k-table-badge {
+      font-family: var(--font-heading); font-weight: 800; font-size: var(--text-2xl);
+      color: var(--primary); background: var(--primary-subtle);
+      padding: 8px 16px; border-radius: var(--radius-md);
+      border: 1px solid rgba(255,166,43,0.2);
+      line-height: 1;
+    }
+    .k-time {
+      font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md);
+      display: flex; align-items: center; gap: var(--space-xs);
+    }
+    .k-time.urgent { color: var(--danger); font-weight: 700; }
+    .k-time.warning { color: var(--warning); font-weight: 600; }
+
+    .k-items { list-style: none; padding: 0; margin: 0 0 var(--space-md) 0; }
+    .k-items li {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: 8px 0; border-bottom: 1px solid var(--border-subtle);
+      font-size: var(--text-base);
+    }
+    .k-items li:last-child { border-bottom: none; }
+    .k-item-qty {
+      font-weight: 800; font-size: var(--text-lg); color: var(--primary);
+      min-width: 30px; text-align: center;
+    }
+    .k-item-x { color: var(--text-muted); }
+    .k-item-name { font-weight: 500; }
+    .k-item-note {
+      font-size: var(--text-xs); color: var(--warning); font-style: italic;
+      margin-top: 2px;
+    }
+
+    .k-order-actions {
+      display: flex; gap: var(--space-sm); padding-top: var(--space-sm);
+    }
+
+    /* Sound toggle */
+    .sound-toggle {
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-glass); background: var(--bg-card);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.2rem; transition: all var(--transition-fast);
+    }
+    .sound-toggle:hover { background: var(--bg-card-hover); }
+    .sound-toggle.muted { opacity: 0.5; }
+
+    @media (max-width: 1024px) {
+      .kitchen-columns { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      .kitchen-header { flex-wrap: wrap; gap: var(--space-sm); padding: var(--space-md); }
+      .kitchen-content { padding: var(--space-md); }
+      .kh-stats { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body class="kitchen-body">
+  <div class="page-wrapper">
+    <header class="kitchen-header">
+      <div class="kh-left">
+        <h1 class="kh-title"><i data-lucide="chef-hat"></i> Kitchen</h1>
+        <div class="kh-stats">
+          <span class="kh-stat new-count" id="stat-new"><i data-lucide="flame"></i> 0 New</span>
+          <span class="kh-stat prep-count" id="stat-preparing"><i data-lucide="hourglass"></i> 0 Preparing</span>
+          <span class="kh-stat ready-count" id="stat-ready"><i data-lucide="check-circle"></i> 0 Ready</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:var(--space-sm);align-items:center;">
+        <div class="kitchen-toggle" id="view-toggle">
+          <button class="active" onclick="setView('columns')">Columns</button>
+          <button onclick="setView('list')">List</button>
+        </div>
+        <button class="sound-toggle" id="sound-toggle" onclick="toggleSound()" title="Toggle sound">
+          <i data-lucide="bell-ring"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="kitchen-content" id="kitchen-content"></main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../shared/data.js?v=2"></script>
+  <script src="../shared/utils.js?v=5"></script>
+  <script src="../shared/store.js?v=5"></script>
+  <script>
+    var viewMode = 'columns'; // 'columns' | 'list'
+    var soundEnabled = true;
+    var lastOrderCount = 0;
+
+    document.addEventListener('DOMContentLoaded', function () {
+      SaiSagar.Sync.onMessage(function (msg) {
+        if (msg.type === SaiSagar.Store.EVENTS.READY) {
+          render();
+        }
+        if (msg.type === SaiSagar.Store.EVENTS.ORDER_CREATED) {
+          render();
+          if (soundEnabled) {
+            SaiSagar.Utils.playNotificationSound('order');
+            SaiSagar.Utils.playNotificationSound('order');
+          }
+          SaiSagar.Utils.showToast('<i data-lucide="bell-ring"></i> New order from Table ' + msg.payload.tableNumber, 'warning', 5000);
+        }
+        if (msg.type === SaiSagar.Store.EVENTS.ORDER_STATUS ||
+            msg.type === SaiSagar.Store.EVENTS.ORDER_UPDATED ||
+            msg.type === SaiSagar.Store.EVENTS.DATA_RESET) {
+          render();
+        }
+      });
+      SaiSagar.Store.init();
+
+      // Refresh timers every 30s
+      setInterval(render, 30000);
+    });
+
+    function setView(mode) {
+      viewMode = mode;
+      var btns = document.querySelectorAll('#view-toggle button');
+      btns.forEach(function (b) { b.classList.remove('active'); });
+      if (mode === 'columns') btns[0].classList.add('active');
+      else btns[1].classList.add('active');
+      render();
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      var btn = document.getElementById('sound-toggle');
+      btn.textContent = soundEnabled ? '<i data-lucide="bell-ring"></i>' : '<i data-lucide="volume-x"></i>';
+      btn.classList.toggle('muted', !soundEnabled);
+    }
+
+    function render() {
+      var orders = SaiSagar.Store.OrderStore.getActive();
+      var newOrders = orders.filter(function (o) { return o.status === 'new'; });
+      var prepOrders = orders.filter(function (o) { return o.status === 'preparing'; });
+      var readyOrders = orders.filter(function (o) { return o.status === 'ready'; });
+
+      // Check for new orders and play sound
+      var currentNewCount = newOrders.length;
+      if (currentNewCount > lastOrderCount && soundEnabled && lastOrderCount > 0) {
+        SaiSagar.Utils.playNotificationSound('order');
+      }
+      lastOrderCount = currentNewCount;
+
+      // Update stats
+      document.getElementById('stat-new').innerHTML = '<i data-lucide="flame"></i> ' + newOrders.length + ' New';
+      document.getElementById('stat-preparing').innerHTML = '<i data-lucide="hourglass"></i> ' + prepOrders.length + ' Preparing';
+      document.getElementById('stat-ready').innerHTML = '<i data-lucide="check-circle"></i> ' + readyOrders.length + ' Ready';
+
+      // Update page title with count
+      document.title = (newOrders.length > 0 ? '(' + newOrders.length + ') ' : '') + 'Kitchen — New Sai Sagar';
+
+      var container = document.getElementById('kitchen-content');
+
+      if (orders.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="min-height:60vh">' +
+          '<div class="empty-icon"><i data-lucide="chef-hat"></i></div>' +
+          '<div class="empty-title">No active orders</div>' +
+          '<div class="empty-text">Orders will appear here when customers place them</div></div>';
+        return;
+      }
+
+      if (viewMode === 'columns') {
+        renderColumns(container, newOrders, prepOrders, readyOrders);
+      } else {
+        renderList(container, orders);
+      }
+    }
+
+    function renderColumns(container, newOrders, prepOrders, readyOrders) {
+      var html = '<div class="kitchen-columns">';
+
+      // New Orders
+      html += '<div class="kitchen-column col-new">' +
+        '<div class="column-header"><h3><i data-lucide="flame"></i> New Orders</h3><span class="col-count">' + newOrders.length + '</span></div>';
+      if (newOrders.length === 0) {
+        html += '<div class="empty-state" style="padding:var(--space-xl) 0"><div class="empty-icon" style="font-size:2rem">✨</div><div class="empty-text">No new orders</div></div>';
+      }
+      newOrders.forEach(function (o) { html += renderOrderCard(o); });
+      html += '</div>';
+
+      // Preparing
+      html += '<div class="kitchen-column col-preparing">' +
+        '<div class="column-header"><h3><i data-lucide="hourglass"></i> Preparing</h3><span class="col-count">' + prepOrders.length + '</span></div>';
+      if (prepOrders.length === 0) {
+        html += '<div class="empty-state" style="padding:var(--space-xl) 0"><div class="empty-icon" style="font-size:2rem"><i data-lucide="cooking-pot"></i></div><div class="empty-text">Nothing cooking</div></div>';
+      }
+      prepOrders.forEach(function (o) { html += renderOrderCard(o); });
+      html += '</div>';
+
+      // Ready
+      html += '<div class="kitchen-column col-ready">' +
+        '<div class="column-header"><h3><i data-lucide="check-circle"></i> Ready</h3><span class="col-count">' + readyOrders.length + '</span></div>';
+      if (readyOrders.length === 0) {
+        html += '<div class="empty-state" style="padding:var(--space-xl) 0"><div class="empty-icon" style="font-size:2rem"><i data-lucide="inbox"></i></div><div class="empty-text">No ready orders</div></div>';
+      }
+      readyOrders.forEach(function (o) { html += renderOrderCard(o); });
+      html += '</div>';
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function renderList(container, orders) {
+      // Sort: new first, then preparing, then ready
+      var statusPriority = { new: 0, preparing: 1, ready: 2, served: 3 };
+      orders.sort(function (a, b) {
+        return (statusPriority[a.status] || 9) - (statusPriority[b.status] || 9);
+      });
+
+      var html = '<div class="kitchen-list">';
+      orders.forEach(function (o) { html += renderOrderCard(o); });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function renderOrderCard(order) {
+      var mins = SaiSagar.Utils.getMinutesSince(order.createdAt);
+      var timeClass = '';
+      if (mins >= 20) timeClass = 'urgent';
+      else if (mins >= 10) timeClass = 'warning';
+
+      var statusClass = 'is-' + order.status;
+      if (order.status === 'new' && mins >= 20) statusClass += ' urgent';
+
+      var html = '<div class="k-order ' + statusClass + '">';
+
+      // Header
+      html += '<div class="k-order-top">' +
+        '<div><div class="k-order-id">' + order.orderNumber + '</div>' +
+        '<div class="k-time ' + timeClass + '"><i data-lucide="timer"></i> ' + SaiSagar.Utils.getElapsedDisplay(order.createdAt) + '</div></div>' +
+        '<div class="k-table-badge">' + ((order.tableNumber === 'Parcel' || order.tableNumber === 0) ? 'Parcel' : 'T' + order.tableNumber) + '</div>' +
+      '</div>';
+
+      // Items
+      html += '<ul class="k-items">';
+      order.items.forEach(function (item) {
+        html += '<li>' +
+          '<span class="k-item-qty">' + item.quantity + '</span>' +
+          '<span class="k-item-x">×</span>' +
+          '<span class="k-item-name">' + SaiSagar.Utils.escapeHtml(item.name) + '</span>' +
+        '</li>';
+        if (item.specialInstructions) {
+          html += '<li style="border:none;padding:0 0 4px 38px;"><span class="k-item-note"><i data-lucide="edit"></i> ' +
+            SaiSagar.Utils.escapeHtml(item.specialInstructions) + '</span></li>';
+        }
+      });
+      html += '</ul>';
+
+      // Actions
+      html += '<div class="k-order-actions">';
+      if (order.status === 'new') {
+        html += '<button class="btn btn-warning btn-block" onclick="updateStatus(\'' + order.id + '\',\'preparing\')"><i data-lucide="cooking-pot"></i> Start Preparing</button>';
+      } else if (order.status === 'preparing') {
+        html += '<button class="btn btn-success btn-block" onclick="updateStatus(\'' + order.id + '\',\'ready\')"><i data-lucide="check-circle"></i> Mark Ready</button>';
+      } else if (order.status === 'ready') {
+        html += '<button class="btn btn-outline btn-block" onclick="updateStatus(\'' + order.id + '\',\'served\')"><i data-lucide="utensils"></i>️ Mark Served</button>';
+      }
+      html += '</div>';
+
+      html += '</div>';
+      return html;
+    }
+
+    function updateStatus(orderId, newStatus) {
+      SaiSagar.Store.OrderStore.updateStatus(orderId, newStatus);
+
+      var messages = {
+        'preparing': '<i data-lucide="cooking-pot"></i> Order is now being prepared',
+        'ready': '<i data-lucide="check-circle"></i> Order is ready to serve!',
+        'served': '<i data-lucide="utensils"></i>️ Order has been served'
+      };
+      SaiSagar.Utils.showToast(messages[newStatus] || 'Status updated', 'success');
+
+      if (newStatus === 'ready' && soundEnabled) {
+        SaiSagar.Utils.playNotificationSound('ready');
+      }
+
+      render();
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</body>
+</html>
