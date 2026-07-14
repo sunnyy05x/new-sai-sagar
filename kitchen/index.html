@@ -219,7 +219,7 @@
     function toggleSound() {
       soundEnabled = !soundEnabled;
       var btn = document.getElementById('sound-toggle');
-      btn.textContent = soundEnabled ? '<i data-lucide="bell-ring"></i>' : '<i data-lucide="volume-x"></i>';
+      btn.innerHTML = soundEnabled ? '<i data-lucide="bell-ring"></i>' : '<i data-lucide="volume-x"></i>';
       btn.classList.toggle('muted', !soundEnabled);
     }
 

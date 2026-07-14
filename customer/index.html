@@ -811,7 +811,7 @@
       };
 
       var msg = statusMessages[order.status] || statusMessages['new'];
-      document.getElementById('order-status-icon').textContent = msg.icon;
+      document.getElementById('order-status-icon').innerHTML = msg.icon;
       document.getElementById('order-status-title').textContent = msg.title;
       document.getElementById('order-status-sub').textContent = msg.sub;
 
