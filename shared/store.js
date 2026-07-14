@@ -67,7 +67,7 @@
       // Send to Supabase
       if (db) db.from('menu').insert([{
         id: item.id, name: item.name, category: item.category, price: item.price,
-        description: item.description, emoji: item.icon, is_available: item.isAvailable, is_jain_available: item.isJainAvailable
+        description: item.description, emoji: item.emoji, is_available: item.isAvailable, is_jain_available: item.isJainAvailable
       }]).then();
       return item;
     },
@@ -82,7 +82,7 @@
       if (updates.category !== undefined) dbUpdates.category = updates.category;
       if (updates.price !== undefined) dbUpdates.price = updates.price;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
-      if (updates.icon !== undefined) dbUpdates.emoji = updates.icon;
+      if (updates.emoji !== undefined) dbUpdates.emoji = updates.emoji;
       if (updates.isAvailable !== undefined) dbUpdates.is_available = updates.isAvailable;
       if (updates.isJainAvailable !== undefined) dbUpdates.is_jain_available = updates.isJainAvailable;
       
@@ -120,7 +120,7 @@
         items: items.map(function (item) {
           return {
             menuItemId: item.id, name: item.name, price: item.price, quantity: item.quantity,
-            specialInstructions: item.specialInstructions || '', emoji: item.icon || '🍽️'
+            specialInstructions: item.specialInstructions || '', emoji: item.emoji || '🍽️'
           };
         }),
         status: 'new',
@@ -321,7 +321,7 @@
 
       if (results[0].data) {
         cache.menu = results[0].data.map(function(m) {
-          return { id: m.id, name: m.name, category: m.category, price: m.price, description: m.description, icon: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available };
+          return { id: m.id, name: m.name, category: m.category, price: m.price, description: m.description, emoji: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available };
         });
       }
       if (results[1].data) {
@@ -372,14 +372,14 @@
         if (payload.eventType === 'INSERT') {
           var m = payload.new;
           if (!cache.menu.find(function(x) { return x.id === m.id; })) {
-            cache.menu.push({ id: m.id, name: m.name, category: m.category, price: m.price, description: m.description, icon: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available });
+            cache.menu.push({ id: m.id, name: m.name, category: m.category, price: m.price, description: m.description, emoji: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available });
             broadcast(EVENTS.MENU_UPDATED, { action: 'add' });
           }
         } else if (payload.eventType === 'UPDATE') {
           var m = payload.new;
           var idx = cache.menu.findIndex(function(x) { return x.id === m.id; });
           if (idx !== -1) {
-            Object.assign(cache.menu[idx], { name: m.name, category: m.category, price: m.price, description: m.description, icon: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available });
+            Object.assign(cache.menu[idx], { name: m.name, category: m.category, price: m.price, description: m.description, emoji: m.emoji, isAvailable: m.is_available, isJainAvailable: m.is_jain_available });
             broadcast(EVENTS.MENU_UPDATED, { action: 'update' });
           }
         } else if (payload.eventType === 'DELETE') {

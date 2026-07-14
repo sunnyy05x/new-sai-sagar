@@ -610,9 +610,15 @@
       }
 
       var delay = (index || 0) * 0.05;
-      var sticker = SaiSagar.categoryStickers[item.category] || 'meal.png';
+      var imageSrc = '';
+      if (item.emoji && (item.emoji.startsWith('data:image/') || item.emoji.startsWith('http'))) {
+        imageSrc = item.emoji;
+      } else {
+        var sticker = SaiSagar.categoryStickers[item.category] || 'meal.png';
+        imageSrc = '../assets/food/' + sticker;
+      }
       return '<div class="menu-card animate-fade-in" style="animation-delay: ' + delay + 's">' +
-        '<div class="item-sticker"><img src="../assets/food/' + sticker + '"></div>' +
+        '<div class="item-sticker"><img src="' + imageSrc + '"></div>' +
         '<div class="item-details">' +
           '<div class="item-name">' + SaiSagar.Utils.escapeHtml(item.name) + '</div>' +
           '<div class="item-desc">' + SaiSagar.Utils.escapeHtml(item.description) + '</div>' +
@@ -723,9 +729,15 @@
       var html = '';
       cart.forEach(function (item) {
         var menuItem = SaiSagar.Store.MenuStore.getById(item.id);
-        var catPhoto = menuItem ? (SaiSagar.categoryStickers[menuItem.category] || 'biryani.jpg') : 'biryani.jpg';
+        var imageSrc = '';
+        if (menuItem && menuItem.emoji && (menuItem.emoji.startsWith('data:image/') || menuItem.emoji.startsWith('http'))) {
+          imageSrc = menuItem.emoji;
+        } else {
+          var catPhoto = menuItem ? (SaiSagar.categoryStickers[menuItem.category] || 'biryani.jpg') : 'biryani.jpg';
+          imageSrc = '../assets/food/' + catPhoto;
+        }
         html += '<div class="cart-item">' +
-          '<img src="../assets/food/' + catPhoto + '" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0">' +
+          '<img src="' + imageSrc + '" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0">' +
           '<div class="ci-details">' +
             '<div class="ci-name">' + SaiSagar.Utils.escapeHtml(item.name) + '</div>' +
             '<div class="ci-price">' + SaiSagar.Utils.formatCurrencyShort(item.price) + ' each</div>' +

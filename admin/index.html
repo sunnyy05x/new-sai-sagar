@@ -328,15 +328,26 @@
             <input type="text" class="form-input" id="mi-emoji" placeholder="soup" maxlength="20">
           </div>
           <div class="form-group">
-            <label class="form-label">Options</label>
-            <div style="display:flex;gap:var(--space-md);margin-top:var(--space-sm)">
-              <label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer">
-                <input type="checkbox" id="mi-available" checked> Available
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer">
-                <input type="checkbox" id="mi-jain"> Jain
-              </label>
-            </div>
+            <label class="form-label">Or Upload Photo</label>
+            <input type="file" class="form-input" id="mi-file" accept="image/*" style="padding: 4px;">
+          </div>
+        </div>
+        <div class="form-group hidden" id="mi-img-preview-group" style="margin-bottom:var(--space-md)">
+          <label class="form-label">Photo Preview</label>
+          <div style="display:flex;align-items:center;gap:var(--space-md)">
+            <img id="mi-img-preview" src="" style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border-subtle)">
+            <button type="button" class="btn btn-sm btn-danger" onclick="clearPhoto()" style="padding:4px 8px;font-size:12px">Remove Photo</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:var(--space-md)">
+          <label class="form-label">Options</label>
+          <div style="display:flex;gap:var(--space-md);margin-top:var(--space-sm)">
+            <label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer">
+              <input type="checkbox" id="mi-available" checked> Available
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:var(--text-sm);cursor:pointer">
+              <input type="checkbox" id="mi-jain"> Jain
+            </label>
           </div>
         </div>
         <div class="modal-footer">
@@ -354,6 +365,7 @@
   <script>
     var currentSection = 'dashboard';
     var editingItemId = null;
+    var photoDataUrl = '';
 
     document.addEventListener('DOMContentLoaded', function () {
       SaiSagar.Sync.onMessage(function (msg) {
@@ -378,6 +390,46 @@
       });
 
       setInterval(renderCurrentSection, 30000);
+
+      // Handle photo upload and compression
+      document.getElementById('mi-file').addEventListener('change', function(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        
+        var reader = new FileReader();
+        reader.onload = function(event) {
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var max_size = 200; // max size 200px (sufficient for thumbnails)
+            var width = img.width;
+            var height = img.height;
+            
+            if (width > height) {
+              if (width > max_size) {
+                height *= max_size / width;
+                width = max_size;
+              }
+            } else {
+              if (height > max_size) {
+                width *= max_size / height;
+                height = max_size;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            photoDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            document.getElementById('mi-img-preview').src = photoDataUrl;
+            document.getElementById('mi-img-preview-group').classList.remove('hidden');
+            document.getElementById('mi-emoji').value = ''; // Clear icon input
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
     });
 
     /* ── Navigation ──────────────────────────── */
@@ -485,9 +537,15 @@
 
       var html = '';
       menu.forEach(function (item) {
-        var catPhoto = SaiSagar.categoryStickers ? (SaiSagar.categoryStickers[item.category] || 'biryani.jpg') : 'biryani.jpg';
+        var imageSrc = '';
+        if (item.emoji && (item.emoji.startsWith('data:image/') || item.emoji.startsWith('http'))) {
+          imageSrc = item.emoji;
+        } else {
+          var catPhoto = SaiSagar.categoryStickers ? (SaiSagar.categoryStickers[item.category] || 'biryani.jpg') : 'biryani.jpg';
+          imageSrc = '../assets/food/' + catPhoto;
+        }
         html += '<tr>' +
-          '<td><img src="../assets/food/' + catPhoto + '" style="width:40px;height:40px;border-radius:8px;object-fit:cover"></td>' +
+          '<td><img src="' + imageSrc + '" style="width:40px;height:40px;border-radius:8px;object-fit:cover"></td>' +
           '<td><div style="font-weight:600">' + SaiSagar.Utils.escapeHtml(item.name) + '</div>' +
             '<div style="font-size:var(--text-xs);color:var(--text-secondary)">' + SaiSagar.Utils.escapeHtml(item.description || '') + '</div></td>' +
           '<td><span class="badge badge-accent">' + item.category + '</span></td>' +
@@ -517,15 +575,38 @@
       document.getElementById('mi-category').value = item ? item.category : '';
       document.getElementById('mi-price').value = item ? item.price : '';
       document.getElementById('mi-desc').value = item ? (item.description || '') : '';
-      document.getElementById('mi-emoji').value = item ? (item.emoji || '') : '';
       document.getElementById('mi-available').checked = item ? item.isAvailable : true;
       document.getElementById('mi-jain').checked = item ? item.isJainAvailable : false;
+      
+      // Reset photo upload input
+      document.getElementById('mi-file').value = '';
+      
+      if (item && item.emoji && (item.emoji.startsWith('data:image/') || item.emoji.startsWith('http'))) {
+        photoDataUrl = item.emoji;
+        document.getElementById('mi-img-preview').src = photoDataUrl;
+        document.getElementById('mi-img-preview-group').classList.remove('hidden');
+        document.getElementById('mi-emoji').value = '';
+      } else {
+        photoDataUrl = '';
+        document.getElementById('mi-img-preview').src = '';
+        document.getElementById('mi-img-preview-group').classList.add('hidden');
+        document.getElementById('mi-emoji').value = item ? (item.emoji || '') : '';
+      }
+      
       document.getElementById('menu-modal').classList.add('active');
+    }
+
+    function clearPhoto() {
+      photoDataUrl = '';
+      document.getElementById('mi-file').value = '';
+      document.getElementById('mi-img-preview').src = '';
+      document.getElementById('mi-img-preview-group').classList.add('hidden');
     }
 
     function closeMenuModal() {
       document.getElementById('menu-modal').classList.remove('active');
       editingItemId = null;
+      photoDataUrl = '';
     }
 
     function editMenuItem(id) {
@@ -535,12 +616,13 @@
 
     function saveMenuItem(e) {
       e.preventDefault();
+      var emojiVal = photoDataUrl || document.getElementById('mi-emoji').value.trim() || 'utensils';
       var data = {
         name: document.getElementById('mi-name').value.trim(),
         category: document.getElementById('mi-category').value,
         price: parseFloat(document.getElementById('mi-price').value),
         description: document.getElementById('mi-desc').value.trim(),
-        emoji: document.getElementById('mi-emoji').value.trim() || 'utensils',
+        emoji: emojiVal,
         isAvailable: document.getElementById('mi-available').checked,
         isJainAvailable: document.getElementById('mi-jain').checked
       };
